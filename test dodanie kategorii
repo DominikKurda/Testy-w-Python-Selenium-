@@ -1,0 +1,89 @@
+import unittest
+import time
+import random
+import string
+
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import Select, WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
+
+
+class TestDodawanieKategoriiDownload(unittest.TestCase):
+
+    def setUp(self):
+        self.LOGIN = "dominikkurda6@gmail.com"
+        self.HASLO = "domino2024D"
+        self.BASE_URL = "https://ndsbnhq893.go6.publigo.onl"
+
+        self.driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()))
+        self.driver.maximize_window()
+        self.wait = WebDriverWait(self.driver, 15)
+
+    def losowy_tekst(self, dlugosc=6):
+        return ''.join(random.choices(string.ascii_lowercase, k=dlugosc))
+
+    def test_dodaj_nowa_kategorie(self):
+        driver = self.driver
+        wait = self.wait
+
+        nazwa_kategorii = "test_" + self.losowy_tekst()
+        slug_kategorii = "slug_" + self.losowy_tekst()
+
+        # 1. Logowanie
+        driver.get(f"{self.BASE_URL}/wp-login.php")
+
+        wait.until(EC.visibility_of_element_located((By.ID, "user_login"))).send_keys(self.LOGIN)
+        driver.find_element(By.ID, "user_pass").send_keys(self.HASLO)
+        driver.find_element(By.ID, "wp-submit").click()
+
+        wait.until(EC.presence_of_element_located((By.ID, "wpadminbar")))
+
+        # 2. Przejdź do kategorii produktów cyfrowych
+        driver.get(f"{self.BASE_URL}/wp-admin/edit-tags.php?taxonomy=download_category&post_type=download")
+
+        wait.until(EC.visibility_of_element_located((By.ID, "tag-name")))
+
+        # 3. Formularz
+        driver.find_element(By.ID, "tag-name").send_keys(nazwa_kategorii)
+        driver.find_element(By.ID, "tag-slug").send_keys(slug_kategorii)
+
+        # 4. Kategoria nadrzędna
+        parent_select = Select(driver.find_element(By.ID, "parent"))
+
+        opcje = [option.text.strip() for option in parent_select.options]
+        print("Dostępne kategorie nadrzędne:", opcje)
+
+        if "Kursy" in opcje:
+            parent_select.select_by_visible_text("Kursy")
+        else:
+            parent_select.select_by_value("-1")  # brak kategorii nadrzędnej
+
+        driver.find_element(By.ID, "tag-description").send_keys("operacja poprawna")
+
+        # 5. Dodaj kategorię
+        driver.find_element(By.ID, "submit").click()
+
+        time.sleep(2)
+
+        # 6. Walidacja
+        lista_kategorii = wait.until(
+            EC.visibility_of_element_located((By.ID, "the-list"))
+        ).text.lower()
+
+        self.assertIn(
+            nazwa_kategorii.lower(),
+            lista_kategorii,
+            f"❌ Kategoria '{nazwa_kategorii}' NIE została dodana!"
+        )
+
+        print(f"✅ Kategoria '{nazwa_kategorii}' została dodana poprawnie!")
+
+    def tearDown(self):
+        self.driver.quit()
+
+
+if __name__ == "__main__":
+    unittest.main()
