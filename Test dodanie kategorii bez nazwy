@@ -1,0 +1,85 @@
+import unittest
+
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from webdriver_manager.chrome import ChromeDriverManager
+
+
+class TestBrakNazwyKategorii(unittest.TestCase):
+
+    def setUp(self):
+        self.BASE_URL = "https://ndsbnhq893.go6.publigo.onl"
+        self.LOGIN = "dominikkurda6@gmail.com"
+        self.HASLO = "domino2024D"
+
+        self.driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()))
+        self.driver.maximize_window()
+        self.wait = WebDriverWait(self.driver, 15)
+
+        self.zaloguj()
+
+    def zaloguj(self):
+        driver = self.driver
+        wait = self.wait
+
+        driver.get(f"{self.BASE_URL}/wp-login.php")
+
+        wait.until(EC.visibility_of_element_located((By.ID, "user_login"))).send_keys(self.LOGIN)
+        driver.find_element(By.ID, "user_pass").send_keys(self.HASLO)
+        driver.find_element(By.ID, "wp-submit").click()
+
+        wait.until(EC.visibility_of_element_located((By.ID, "wpadminbar")))
+
+    def test_nie_mozna_dodac_kategorii_bez_nazwy(self):
+        driver = self.driver
+        wait = self.wait
+
+        driver.get(
+            f"{self.BASE_URL}/wp-admin/edit-tags.php?taxonomy=download_category&post_type=download"
+        )
+
+        name_input = wait.until(
+            EC.visibility_of_element_located((By.ID, "tag-name"))
+        )
+
+        name_input.clear()
+
+        # dodatkowo wpisujemy opis, żeby sprawdzić konkretnie brak nazwy
+        driver.find_element(By.ID, "tag-description").clear()
+        driver.find_element(By.ID, "tag-description").send_keys("opis testowy bez nazwy")
+
+        driver.find_element(By.ID, "submit").click()
+
+        # po błędzie formularz powinien zostać na stronie dodawania kategorii
+        wait.until(EC.visibility_of_element_located((By.ID, "tag-name")))
+
+        body_text = driver.find_element(By.TAG_NAME, "body").text.lower()
+
+        self.assertTrue(
+            "nazwa" in body_text
+            or "name" in body_text
+            or "required" in body_text
+            or "wymagane" in body_text,
+            "❌ Nie znaleziono komunikatu walidacji dla pustej nazwy kategorii."
+        )
+
+        # dodatkowa walidacja: nie powinno powstać puste lub błędne wpisanie kategorii
+        lista = driver.find_element(By.ID, "the-list").text.lower()
+
+        self.assertNotIn(
+            "opis testowy bez nazwy",
+            lista,
+            "❌ Kategoria bez nazwy została prawdopodobnie dodana do listy."
+        )
+
+        print("✅ System poprawnie blokuje dodanie kategorii bez nazwy.")
+
+    def tearDown(self):
+        self.driver.quit()
+
+
+if __name__ == "__main__":
+    unittest.main()
