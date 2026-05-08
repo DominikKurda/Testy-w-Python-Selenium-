@@ -1,0 +1,114 @@
+import unittest
+import random
+import string
+import time
+
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+
+
+class TestTworzenieKoduZnizkowego(unittest.TestCase):
+
+    def setUp(self):
+        self.LOGIN = "dominikkurda6@gmail.com"
+        self.HASLO = "domino2024D"
+        self.BASE_URL = "https://ndsbnhq893.go6.publigo.onl"
+
+        self.driver = webdriver.Chrome(service=Service())
+        self.driver.maximize_window()
+        self.wait = WebDriverWait(self.driver, 15)
+
+    def losowy_tekst(self, dlugosc=8):
+        return ''.join(random.choices(string.ascii_uppercase + string.digits, k=dlugosc))
+
+    def test_tworzenie_kodu_znizkowego(self):
+        driver = self.driver
+        wait = self.wait
+
+        nazwa_promocji = "Promocja_" + self.losowy_tekst()
+        kod = "KOD_" + self.losowy_tekst()
+
+        # 1. Logowanie
+        driver.get(f"{self.BASE_URL}/wp-login.php")
+        wait.until(EC.visibility_of_element_located((By.ID, "user_login"))).send_keys(self.LOGIN)
+        driver.find_element(By.ID, "user_pass").send_keys(self.HASLO)
+        driver.find_element(By.ID, "wp-submit").click()
+        wait.until(EC.presence_of_element_located((By.ID, "wpadminbar")))
+
+        # 2. Strona kodów zniżkowych
+        driver.get(f"{self.BASE_URL}/wp-admin/admin.php?page=wp-idea-discounts")
+        wait.until(EC.presence_of_element_located((By.TAG_NAME, "h1")))
+
+        # 3. Kliknij "Dodaj nowy"
+        dodaj_nowy = wait.until(
+            EC.element_to_be_clickable((
+                By.XPATH,
+                "//a[contains(normalize-space(), 'Dodaj nowy') or contains(normalize-space(), 'Dodaj kod') or contains(normalize-space(), 'Add New')]"
+            ))
+        )
+
+        driver.execute_script("arguments[0].click();", dodaj_nowy)
+
+        time.sleep(2)
+
+        # 4. Wpisz losową nazwę promocji
+        pole_nazwy = wait.until(
+            EC.visibility_of_element_located((
+                By.XPATH,
+                "//input[contains(@placeholder, 'Nazwa promocji') or contains(@name, 'name') or contains(@id, 'name')]"
+            ))
+        )
+        pole_nazwy.clear()
+        pole_nazwy.send_keys(nazwa_promocji)
+
+        # 5. Wpisz losowy kod zniżkowy
+        pole_kodu = wait.until(
+            EC.visibility_of_element_located((
+                By.XPATH,
+                "//input[contains(@placeholder, '10PROENT') or contains(@placeholder, '10procent') or contains(@name, 'code') or contains(@id, 'code')]"
+            ))
+        )
+        pole_kodu.clear()
+        pole_kodu.send_keys(kod)
+
+        # 6. Wpisz wartość zniżki
+        pole_znizki = wait.until(
+            EC.visibility_of_element_located((
+                By.XPATH,
+                "//input[contains(@name, 'amount') or contains(@id, 'amount') or contains(@name, 'discount') or contains(@id, 'discount') or @type='number']"
+            ))
+        )
+        pole_znizki.clear()
+        pole_znizki.send_keys("10")
+
+        # 7. Zapisz
+        zapisz = wait.until(
+            EC.element_to_be_clickable((
+                By.XPATH,
+                "//button[contains(., 'Zapisz') or contains(., 'Dodaj') or @type='submit'] | //input[@type='submit']"
+            ))
+        )
+
+        driver.execute_script("arguments[0].click();", zapisz)
+
+        time.sleep(3)
+
+        # 8. Walidacja
+        body = driver.find_element(By.TAG_NAME, "body").text.lower()
+
+        self.assertTrue(
+            nazwa_promocji.lower() in body or kod.lower() in body,
+            f"❌ Nie znaleziono utworzonego kodu. Nazwa: {nazwa_promocji}, Kod: {kod}"
+        )
+
+        print(f"✅ Utworzono kod zniżkowy: nazwa='{nazwa_promocji}', kod='{kod}'")
+
+    def tearDown(self):
+        self.driver.quit()
+
+
+if __name__ == "__main__":
+    unittest.main()
